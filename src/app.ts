@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import { connectDB } from "./config/db";
 import orderRoutes from "./routes/orderRoutes";
 import customerRoutes from "./routes/customerRoutes";
+import segmentRoutes from "./routes/segmentRoutes";
 
 
 dotenv.config();
@@ -21,6 +22,8 @@ app.use(morgan("dev"));
 
 app.use("/api/orders", orderRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/segments", segmentRoutes);
+
 
 
 export default app;

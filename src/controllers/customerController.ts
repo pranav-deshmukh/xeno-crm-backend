@@ -9,6 +9,9 @@ const CustomerSchema = z.object({
   phone: z.string(),
   registration_date: z.string().transform((val) => new Date(val)),
   city: z.string().optional(),
+  total_spent: z.number(),
+  total_orders: z.number(),
+  last_order_date: z.string().transform((val) => new Date(val)).optional(),
 });
 
 export const createCustomer = async (req: Request, res: Response) => {
