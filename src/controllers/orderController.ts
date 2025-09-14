@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
+import { z } from "zod";
+import { MessageProducer } from "../services/producer";
 import Order from "../models/Order";
-import Customer from "../models/Customer";
-import { z, ZodError } from "zod";
 
 const OrderSchema = z.object({
   order_id: z.string(),
@@ -19,28 +19,25 @@ const OrderSchema = z.object({
   status: z.string().optional(),
 });
 
+const producer = new MessageProducer();
+
 export const createOrder = async (req: Request, res: Response) => {
   try {
     const validatedData = OrderSchema.parse(req.body);
-
     if (!validatedData.status) validatedData.status = "pending";
-
-    const order = new Order(validatedData);
-    await order.save();
-
-    const customer = await Customer.findOne({
-      customer_id: validatedData.customer_id,
+    
+    const messageId = await producer.publishOrder(validatedData);
+    
+    res.status(202).json({ 
+      success: true, 
+      message: "Order creation request accepted",
+      messageId 
     });
-    if (customer) {
-      customer.total_spent += validatedData.amount;
-      customer.total_orders += 1;
-      customer.last_order_date = validatedData.order_date;
-      await customer.save();
-    }
-
-    res.status(201).json({ success: true, order });
   } catch (error: unknown) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    res.status(400).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Validation failed'
+    });
   }
 };
 

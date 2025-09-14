@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
+import { z } from "zod";
+import { MessageProducer } from "../services/producer";
 import Customer from "../models/Customer";
-import { z, ZodError } from "zod";
 
 const CustomerSchema = z.object({
   customer_id: z.string(),
@@ -14,25 +15,26 @@ const CustomerSchema = z.object({
   last_order_date: z.string().transform((val) => new Date(val)).optional(),
 });
 
+const producer = new MessageProducer();
+
 export const createCustomer = async (req: Request, res: Response) => {
   try {
+    // Only validate data, don't persist yet
     const validatedData = CustomerSchema.parse(req.body);
-
-    const existing = await Customer.findOne({
-      customer_id: validatedData.customer_id,
+    
+    // Publish to Redis Stream
+    const messageId = await producer.publishCustomer(validatedData);
+    
+    res.status(202).json({ 
+      success: true, 
+      message: "Customer creation request accepted",
+      messageId 
     });
-    if (existing) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Customer already exists" });
-    }
-
-    const customer = new Customer(validatedData);
-    await customer.save();
-
-    res.status(201).json({ success: true, customer });
   } catch (error: unknown) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    res.status(400).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Validation failed'
+    });
   }
 };
 

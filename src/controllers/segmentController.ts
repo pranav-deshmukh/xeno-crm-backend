@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
+import { v4 as uuidv4 } from "uuid";
 import Customer from "../models/Customer";
+import Segment from "../models/Segment";
 import { buildMongoQuery, Rule } from "../utils/buildMongoQuery";
 import { PreviewRequest, PreviewResponse } from "../types/preview";
 
@@ -60,6 +62,63 @@ export const previewSegment = async (req: Request, res: Response) => {
     };
 
     res.json(response);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+};
+
+export const saveSegment = async (req: Request, res: Response) => {
+  try {
+    const { name, description, rules } = req.body;
+
+    const query = buildMongoQuery(rules);
+    const audienceSize = await Customer.countDocuments(query);
+
+    const segment = new Segment({
+      segment_id: uuidv4(),
+      name,
+      description,
+      rules,
+      audience_size: audienceSize,
+    });
+
+    await segment.save();
+
+    res.status(201).json({
+      message: "Segment saved successfully",
+      segment: {
+        id: segment.segment_id,
+        name: segment.name,
+        audience_size: audienceSize,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+};
+
+export const getSegments = async (req: Request, res: Response) => {
+  try {
+    const segments = await Segment.find()
+      .select("segment_id name description audience_size created_at")
+      .sort({ created_at: -1 });
+
+    res.json(segments);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+};
+
+export const getSegmentById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const segment = await Segment.findOne({ segment_id: id });
+
+    if (!segment) {
+      return res.status(404).json({ error: "Segment not found" });
+    }
+
+    res.json(segment);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
