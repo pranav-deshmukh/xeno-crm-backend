@@ -101,8 +101,8 @@ GEMINI_API_KEY=
 1. Clone the repository
 
 ```bash
-git clone <repo-url>
-cd <repo-folder>
+git clone https://github.com/pranav-deshmukh/xeno-crm-backend
+cd xeno-crm-backend
 ```
 
 2. Install dependencies
@@ -207,8 +207,7 @@ RedisInsight will be available on `http://localhost:8001` (use it to inspect str
 
 ## Postman collection & API documentation
 
-- It is recommended to export a Postman collection (`v2.1`) and include it in the repository under `/postman` so evaluators can import it.
-- The collection can serve as human-readable documentation (request summaries, example bodies, example responses) and can be published to Postman documentation for a slick web-hosted docs page.
+- https://web.postman.co/documentation/27455292-27b34545-351f-4988-9856-aa2d8d45d916/publish?workspaceId=2417424f-dd47-4729-8610-bbd061ccea86
 
 ---
 
@@ -216,7 +215,8 @@ RedisInsight will be available on `http://localhost:8001` (use it to inspect str
 
 The frontend is a separate application that consumes these APIs. Update the following placeholder with the real URL or repo path for your frontend project:
 
-- Frontend repo / deploy URL: `https://github.com/<your-org>/<frontend-repo>`
+- Frontend URL: `https://xeno-crm-frontend-dusky.vercel.app/`
+- Frontend repo: `https://github.com/pranav-deshmukh/xeno-crm-frontend`
 - Frontend expects `NEXT_PUBLIC_SERVER_API_URL` to point at this backend (example: `http://localhost:8080`).
 
 ---
@@ -237,7 +237,3 @@ The frontend is a separate application that consumes these APIs. Update the foll
 3. Open a pull request with a clear description and reference to the issue.
 
 ---
-
-## API Documentation
-
-https://web.postman.co/documentation/27455292-27b34545-351f-4988-9856-aa2d8d45d916/publish?workspaceId=2417424f-dd47-4729-8610-bbd061ccea86
