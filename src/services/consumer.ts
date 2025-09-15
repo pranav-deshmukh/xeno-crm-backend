@@ -2,6 +2,10 @@ import redis from './redisClient';
 import Customer from '../models/Customer';
 import Order from '../models/Order';
 
+type RedisStreamMessage = [string, string[]]; // [messageId, fields]
+type RedisStreamData = [string, RedisStreamMessage[]]; // [streamName, messages]
+type RedisStreamResponse = RedisStreamData[] | null;
+
 export class MessageConsumer {
   private isRunning = false;
 
@@ -34,10 +38,10 @@ export class MessageConsumer {
           'COUNT', 1,
           'BLOCK', 1000,
           'STREAMS', 'customer_stream', '>'
-        );
+        )as RedisStreamResponse;
 
         if (messages && messages.length > 0) {
-          for (const [stream, msgs] of messages) {
+          for (const [_, msgs] of messages) {
             for (const [messageId, fields] of msgs) {
               await this.processCustomerMessage(messageId, fields);
             }
@@ -58,10 +62,10 @@ export class MessageConsumer {
           'COUNT', 1,
           'BLOCK', 1000,
           'STREAMS', 'order_stream', '>'
-        );
+        )as RedisStreamResponse;
 
         if (messages && messages.length > 0) {
-          for (const [stream, msgs] of messages) {
+          for (const [_, msgs] of messages) {
             for (const [messageId, fields] of msgs) {
               await this.processOrderMessage(messageId, fields);
             }

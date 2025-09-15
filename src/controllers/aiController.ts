@@ -1,10 +1,10 @@
 // controllers/aiController.ts
 import { Request, Response } from "express";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import Segment from "../models/Segment";
 import dotenv from "dotenv";
+import { Rule } from "../utils/buildMongoQuery";
 dotenv.config();
-
 
 interface MessageSuggestionRequest {
   campaign_objective: string;
@@ -26,8 +26,8 @@ interface MessageSuggestionRequest {
 class GeminiAIService {
   private apiKey: string;
   private baseUrl: string =
-    "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent";
-  
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || "";
     if (!this.apiKey) {
@@ -36,7 +36,10 @@ class GeminiAIService {
   }
 
   async generateMessages(prompt: string): Promise<any> {
-    console.log("Using GEMINI_API_KEY:", this.apiKey ? "✅ Loaded" : "❌ Missing");
+    console.log(
+      "Using GEMINI_API_KEY:",
+      this.apiKey ? "✅ Loaded" : "❌ Missing"
+    );
 
     try {
       const response = await axios.post(
@@ -74,7 +77,7 @@ class GeminiAIService {
       }
 
       return generatedText;
-    } catch (error) {
+    } catch (error: AxiosError | any) {
       console.error("Gemini API Error:", error.response?.data || error.message);
       throw error;
     }
@@ -110,15 +113,16 @@ export const generateMessageSuggestions = async (
       const segment = await Segment.findOne({ segment_id });
       if (segment) {
         segmentData = segment;
+        const audienceSize = segment.audience_size || 0;
         segmentContext = `
 TARGET AUDIENCE ANALYSIS:
-- Segment: ${segment.name} (${segment.audience_size} customers)
+- Segment: ${segment.name} (${audienceSize} customers)
 - Profile: ${segment.description || "General audience"}
-- Size: ${segment.audience_size} potential recipients
+- Size: ${audienceSize} potential recipients
 - Engagement Level: ${
-          segment.audience_size > 10000
+          audienceSize > 10000
             ? "Large scale"
-            : segment.audience_size > 1000
+            : audienceSize > 1000
             ? "Medium scale"
             : "Focused group"
         }`;
@@ -142,7 +146,11 @@ ${
 }
 
 AUDIENCE INSIGHTS TO CONSIDER:
-${audience_size ? `- Audience Size: ${audience_size} customers` : ""}
+${
+  audience_size
+    ? `- Audience Size: ${audience_size} customers`
+    : "- Audience Size: Not specified"
+}
 - Communication preference: Modern, mobile-first audience
 - Attention span: Short, impact-driven messaging required
 - Value drivers: Personalization, exclusivity, clear benefits
@@ -271,12 +279,10 @@ Now generate 3 unique, high-converting message variations for: "${campaign_objec
         context_used: {
           has_segment_data: !!segmentData,
           has_custom_context: !!target_audience_description,
-          campaign_scale:
-            audience_size > 10000
-              ? "large"
-              : audience_size > 1000
-              ? "medium"
-              : "small",
+          campaign_scale: (() => {
+            const size = segmentData?.audience_size || audience_size || 0;
+            return size > 10000 ? "large" : size > 1000 ? "medium" : "small";
+          })(),
         },
       },
     });
@@ -449,3 +455,123 @@ function generateExclusiveMessage(
     expected_engagement: "high",
   };
 }
+
+export const generateSegmentRules = async (req: Request, res: Response) => {
+  try {
+    const { naturalQuery } = req.body;
+
+    if (!naturalQuery) {
+      return res.status(400).json({
+        success: false,
+        error: "naturalQuery is required",
+      });
+    }
+
+    const prompt = `
+You are an expert in customer segmentation for e-commerce.
+Convert the following natural language description into structured logical rules.
+
+NATURAL LANGUAGE INPUT:
+"${naturalQuery}"
+
+AVAILABLE FIELDS:
+- total_spent (number): Customer's total spending amount
+- total_orders (number): Number of orders placed
+- last_order_date (date): Date of last order
+- registration_date (date): Customer registration date
+- city (text): Customer's city
+
+OPERATORS BY FIELD TYPE:
+- Number fields: >, <, >=, <=, =, !=
+- Date fields: >, <, >=, <=, older_than (for days)
+- Text fields: contains, not_contains, =, !=
+
+RULE FORMAT (return ONLY valid JSON):
+{
+  "rules": [
+    {
+      "id": "rule_1",
+      "field": "total_spent",
+      "operator": ">",
+      "value": 5000,
+      "logic": "AND"
+    },
+    {
+      "id": "rule_2",
+      "field": "last_order_date",
+      "operator": "older_than",
+      "value": 30,
+      "logic": "OR"
+    }
+  ]
+}
+
+IMPORTANT RULES:
+- For date comparisons with days, use "older_than" operator with number of days
+- For date comparisons with specific dates, use ISO format (YYYY-MM-DD)
+- Numbers should be plain integers (no quotes)
+- Text values should be strings
+- All other rules should have "logic": "AND" or "OR"
+
+Return only the JSON object, no explanations or markdown formatting.
+`;
+
+    const aiResponse = await geminiService.generateMessages(prompt);
+
+    let parsedResponse = null;
+    try {
+      // Clean the response - remove any markdown formatting
+      const cleaned = aiResponse
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "")
+        .replace(/^[^{]*({.*})[^}]*$/s, "$1")
+        .trim();
+
+      parsedResponse = JSON.parse(cleaned);
+
+      // Validate the response structure
+      if (!parsedResponse.rules || !Array.isArray(parsedResponse.rules)) {
+        throw new Error("Invalid response format: missing rules array");
+      }
+
+      // Validate each rule
+      parsedResponse.rules.forEach((rule: Rule, index: number) => {
+        if (!rule.field || !rule.operator || rule.value === undefined) {
+          throw new Error(
+            `Invalid rule at index ${index}: missing required fields`
+          );
+        }
+      });
+    } catch (parseError: unknown) {
+      console.error("Failed to parse AI response:", parseError);
+      console.error("Raw AI Response:", aiResponse);
+      const errorMessage =
+        parseError instanceof Error ? parseError.message : String(parseError);
+      return res.status(500).json({
+        success: false,
+        error: "Could not parse AI response into valid rules",
+        debug: {
+          raw_response: aiResponse,
+          parse_error: errorMessage,
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      naturalQuery,
+      rules: parsedResponse.rules,
+      metadata: {
+        ai_model: "gemini-2.0-flash",
+        generated_at: new Date().toISOString(),
+        rules_count: parsedResponse.rules.length,
+      },
+    });
+  } catch (error) {
+    console.error("Segment rule generation error:", error);
+    res.status(500).json({
+      success: false,
+      error: (error as Error).message,
+    });
+  }
+};

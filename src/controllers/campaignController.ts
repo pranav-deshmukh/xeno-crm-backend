@@ -186,9 +186,7 @@ export const getCampaignLogs = async (req: Request, res: Response) => {
   }
 };
 
-// =================== DELIVERY FUNCTIONS ===================
 
-// Async delivery initiation
 const initiateDelivery = async (campaignId: string) => {
   try {
     const pendingMessages = await CommunicationLog.find({
@@ -196,7 +194,7 @@ const initiateDelivery = async (campaignId: string) => {
       status: "PENDING"
     });
 
-    console.log(`🚀 Starting delivery for campaign ${campaignId}: ${pendingMessages.length} messages`);
+    console.log(`Starting delivery for campaign ${campaignId}: ${pendingMessages.length} messages`);
 
     // Send messages to vendor API with staggered timing
     pendingMessages.forEach((logEntry, index) => {

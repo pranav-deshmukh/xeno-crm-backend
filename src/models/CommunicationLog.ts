@@ -1,6 +1,7 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 
 export interface ICommunicationLog extends Document {
+  _id: Types.ObjectId;
   campaign_id: string;
   customer_id: string;
   customer_name: string;
